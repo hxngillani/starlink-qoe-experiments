@@ -22,7 +22,7 @@ The client host:
 Recommended layout:
 
 ```bash
-git clone https://github.com/<your-user>/starlink-qoe-experiments.git ~/analysis
+git clone https://github.com/hxngillani/starlink-qoe-experiments.git ~/analysis
 cd ~/analysis/client
 chmod +x *.sh
 ````
@@ -146,7 +146,7 @@ export REPS=2
 ./run_starlink_campaign_slot.sh
 ```
 
-The specific scenario subset is defined in the script (customize it to match your paper).
+The specific scenario subset is defined in the script (customize it to match your needs).
 
 ---
 
