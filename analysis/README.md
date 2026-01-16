@@ -1,7 +1,6 @@
----
-## 4) `analysis/README.md`
 
-```markdown
+---
+
 # Analysis Scripts
 
 This folder contains Python scripts to analyze datasets produced by the `client/` and `anchor/` pipelines.
