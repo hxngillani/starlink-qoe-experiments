@@ -86,7 +86,7 @@ All scripts assume a working directory `~/analysis` on both client and anchor. Y
 On both **client** and **anchor**:
 
 ```bash
-git clone https://github.com/<your-user>/starlink-qoe-experiments.git ~/analysis
+git clone https://github.com/hxngillani/starlink-qoe-experiments.git ~/analysis
 cd ~/analysis
 ```
 
