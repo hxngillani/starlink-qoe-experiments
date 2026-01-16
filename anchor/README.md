@@ -1,3 +1,4 @@
+
 ---
 # Anchor Host (Remote Server)
 
@@ -20,7 +21,7 @@ The anchor host:
 Recommended layout:
 
 ```bash
-git clone https://github.com/<your-user>/starlink-qoe-experiments.git ~/analysis
+git clone https://github.com/hxngillani/starlink-qoe-experiments.git ~/analysis
 cd ~/analysis/anchor
 ````
 
