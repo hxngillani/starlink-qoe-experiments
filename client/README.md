@@ -1,5 +1,4 @@
 
----
 
 # Client Host (Starlink-side)
 
@@ -228,6 +227,5 @@ Make sure:
 * If HTTP QoE fails: confirm `ANCHOR_HTTP` and `HTTP_PORT`, and that assets exist under `~/analysis/web_qoe_assets/`.
 * If outputs are missing: confirm scripts are writing to `~/analysis` and you have permissions.
 
-````
 
----
+
