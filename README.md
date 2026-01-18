@@ -1,6 +1,4 @@
 
----
-
 # Starlink QoE Experiments
 
 This repository contains the full measurement + analysis pipeline we used to study Starlink performance and application QoE:
@@ -8,17 +6,65 @@ This repository contains the full measurement + analysis pipeline we used to stu
 - **RQ1 — Baseline performance** under different protocols/ports  
   (TCP/UDP, ports 80/443/5201/6881, UDP 1M/5M/10M)
 - **RQ2 — DSCP/TOS handling** by Starlink  
-  (e.g., CS0 / AF31 / EF-like)
+  (e.g., CS0 / AF31 / EF-like TOS values 0 / 104 / 184)
 - **RQ3 — Application-level QoE**
   - web downloads
   - HTTP video-like downloads/streaming
   - audio/music-like traffic
 
-**Key idea:** a **Starlink-side client** (mini-PC / laptop behind Starlink) generates traffic towards a remote **anchor server** (cloud VM). We log both network-level metrics and app-level QoE, then analyze everything offline with Python.
+The key idea: a **Starlink-side client** (mini-PC / laptop behind Starlink) generates traffic towards a remote **anchor server** (cloud VM). We log both network-level metrics and app-level QoE, then analyze everything offline with Python.
 
 ---
 
-## Repository layout
+## 1. Architecture overview
+
+### 1.1 Network topology (Figure 1)
+
+![Figure 1 – Network topology](images/fig1_network_topology.png)
+
+**Figure 1 – Network topology.**  
+A Linux **client host** sits behind a Starlink dish + router. The client:
+
+- sends **gateway ICMP pings** to the Starlink gateway IP (e.g., `100.64.0.1`) for baseline RTT;
+- opens **iperf3 TCP/UDP** and **HTTP QoE** connections to the remote **anchor server** (cloud VM);
+- optionally uses a **VPN overlay (Tailscale)**: in *direct* mode, traffic goes to the anchor’s **public IP**; in *VPN* mode, it goes to the anchor’s **VPN IP**, but the physical path is still over Starlink.
+
+The anchor only acts as a controlled endpoint (iperf3 + HTTP server). All measurement control logic runs on the client.
+
+---
+
+### 1.2 Software components & data flow (Figure 2)
+
+![Figure 2 – Software components and data flow](images/fig2_software_components.png)
+
+**Figure 2 – Software components and data flow.**
+
+- **client/** (Starlink side)  
+  Bash scripts that *generate traffic* and write logs/CSVs under the data directory.
+
+- **anchor/** (cloud VM)  
+  Helper scripts to install and run:
+  - one HTTP server (for web/video/audio QoE assets),
+  - multiple iperf3 servers (TCP/UDP).
+
+- **data/** (or `~/analysis` on a real machine)  
+  Where all experiment outputs are written:
+  - `results_gateway/` – baseline Starlink gateway pings  
+  - `results_starlink/` – active TCP/UDP runs for RQ1/RQ2  
+  - `results_apps_web/`, `results_apps_video/`, `results_apps_audio/` – RQ3 HTTP QoE runs  
+  - `web_qoe_assets/` – static assets hosted by the anchor (synthetic + real)  
+  - `all_starlink_runs.csv` – aggregated table of all active runs (built by analysis scripts)
+
+- **analysis/** (any host)  
+  Python scripts and notebooks that read the CSVs and generate figures/tables.
+
+The **client** is the only place where experiment scripts run and where logs are written.  
+The **anchor** acts solely as a controlled traffic endpoint.  
+The **analysis** scripts are pure offline post-processing.
+
+---
+
+## 2. Repository layout
 
 ```text
 starlink-qoe-experiments/
@@ -56,32 +102,36 @@ starlink-qoe-experiments/
 
   data/
     .gitignore
+
+  images/
+    fig1_network_topology.png
+    fig2_software_components.png
 ````
 
 ---
 
-## Roles and assumptions
+## 3. Roles and assumptions
 
-* **Client host**: the machine behind Starlink (mini-PC/laptop).
+* **Client host**: machine behind Starlink (mini-PC or laptop).
 * **Anchor host**: remote VM (public IP) running iperf3 + HTTP content.
 * **Starlink gateway IP**: ping target for baseline RTT (e.g., `100.64.0.1`).
 * **HTTP port**: `8080` by default (adjustable).
 * **iperf3 ports**: `80`, `443`, `5201`, `6881`.
 
-Everything targets Linux (Ubuntu/Debian-style) + bash + python3 + standard CLI tools.
+Everything targets Linux (Ubuntu/Debian-style) with `bash`, `python3`, and standard CLI tools.
 
 ### Data directory convention
 
-All scripts assume a working directory `~/analysis` on both client and anchor. You can either:
+All scripts assume a working directory `~/analysis` on both client and anchor. In practice you can either:
 
 * clone this repo as `~/analysis`, or
-* clone elsewhere and update `BASE_DIR` / paths inside `client/common.sh` and related scripts.
+* clone elsewhere and update the `BASE_DIR` / paths inside `client/common.sh` and related scripts.
 
 ---
 
-## High-level workflow (reproduce the experiments)
+## 4. High-level workflow (reproduce the experiments)
 
-### Step 0 — Clone repo on both machines
+### 4.1 Step 0 — Clone repo on both machines
 
 On both **client** and **anchor**:
 
@@ -94,7 +144,7 @@ If you don’t want `~/analysis`, update the scripts accordingly.
 
 ---
 
-### Step 1 — Setup the anchor server
+### 4.2 Step 1 — Setup the anchor server
 
 On the **anchor VM**:
 
@@ -107,11 +157,11 @@ chmod +x *.sh
 ./start_anchor_services.sh
 ```
 
-Keep services running while the client executes experiments.
+Keep these services running while the client executes experiments.
 
 ---
 
-### Step 2 — Setup the client host
+### 4.3 Step 2 — Setup the client host
 
 On the **Starlink client**:
 
@@ -131,7 +181,7 @@ Configure environment variables (edit `common.sh` / `setup_starlink_scenario_env
 
 ---
 
-### Step 3 — Baseline gateway RTT (results_gateway/)
+### 4.4 Step 3 — Baseline gateway RTT (`results_gateway/`)
 
 Goal: continuous ping to the Starlink gateway and summary stats (RTT/jitter/loss).
 
@@ -140,7 +190,7 @@ cd ~/analysis/client
 
 export GATEWAY=100.64.0.1
 export LOCATION_LABEL=lab_afternoon
-export DURATION_S=1800     # seconds (30 minutes)
+export DURATION_S=1800    # seconds (30 minutes)
 
 ./baseline_gateway_starlink.sh
 ```
@@ -163,16 +213,16 @@ Repeat with different labels:
 
 ---
 
-### Step 4 — RQ1/RQ2 active tests (results_starlink/)
+### 4.5 Step 4 — RQ1/RQ2 active tests (`results_starlink/`)
 
 Goal: controlled traffic towards the anchor for:
 
 * TCP ports: `80`, `443`, `6881`, `5201`
 * UDP rates: `1M`, `5M`, `10M` (typically on port `5201`)
-* DSCP/TOS variants (example on TCP 443): `TOS=0, 104, 184`
-* modes: `direct` (optional `vpn`)
+* DSCP/TOS variants on TCP 443: `TOS=0`, `104`, `184`
+* modes: `direct` (optional `vpn` later)
 
-Example run (3 reps, 60s, direct-only):
+Example run (3 reps, 60 s, direct-only):
 
 ```bash
 cd ~/analysis/client
@@ -195,7 +245,7 @@ Outputs per run folder:
   run_metadata.txt
 ```
 
-If you want slot-based campaigns (subset of scenarios):
+Slot-based campaigns (optional subset of scenarios):
 
 ```bash
 cd ~/analysis/client
@@ -208,7 +258,7 @@ export REPS=3
 
 ---
 
-### Step 5 — RQ3 application-level QoE (results_apps_*)
+### 4.6 Step 5 — RQ3 application-level QoE (`results_apps_*`)
 
 Goal: fetch HTTP assets (web/video/audio), repeated in time slots.
 
@@ -233,17 +283,17 @@ Outputs:
 * `~/analysis/results_apps_video/`
 * `~/analysis/results_apps_audio/`
 
-Each contains CSV logs with metadata columns (slot, mode, tech, plan, asset_name, run_idx, timestamps, etc.).
+Each folder contains CSV logs with metadata columns (slot, mode, tech, plan, asset_name, run_idx, timings, etc.).
 
 Repeat with different slots:
 
 * `SLOT=afternoon1`
 * `SLOT=evening1`
-* etc.
+* …
 
 ---
 
-### Step 6 — Offline analysis (Python)
+### 4.7 Step 6 — Offline analysis (Python)
 
 Once you’ve collected data:
 
@@ -256,35 +306,20 @@ python3 summarize_starlink_metrics.py
 # RQ1/RQ2 style analysis / figures
 python3 analysis_notebook_rq1_rq2_rq4.py
 
-# Gateway baseline analysis (optional re-run)
+# Gateway baseline analysis
 python3 analyze_gateway_ping.py
 
-# RQ3 aggregation/plots (if available)
-python3 analyze_rq3_qoe.py
+# RQ3 aggregation/plots
+python3 analyze_rq3_qoe.py   # if present
 ```
 
-See `analysis/README.md` for details.
+See `analysis/README.md` for more detail on each script and the figures they generate.
 
 ---
 
-## Data storage notes
+## 5. Reproducibility knobs
 
-By default, raw experiment outputs are written under `~/analysis`:
-
-* `results_gateway/`
-* `results_starlink/`
-* `results_apps_web/`
-* `results_apps_video/`
-* `results_apps_audio/`
-* `web_qoe_assets/`
-
-The repo’s `data/` directory is ignored by Git and can be used as a local mount/copy location if desired.
-
----
-
-## Reproducibility knobs
-
-Main parameters you will tweak:
+Main parameters you will typically tweak:
 
 * repetitions: `REPS`
 * duration: `DURATION`, `DURATION_S`
@@ -292,8 +327,10 @@ Main parameters you will tweak:
 * mode: `direct`, `vpn`
 * DSCP/TOS values: `TOS` passed to iperf3
 
-If you change ports/paths, update:
+If you change ports or paths, update:
 
 * `client/common.sh`, `client/setup_starlink_scenario_env.sh`
 * `anchor/start_anchor_services.sh`
-* analysis scripts
+* any analysis scripts that assume specific ports/labels.
+
+---
