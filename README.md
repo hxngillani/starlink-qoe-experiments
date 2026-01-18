@@ -18,7 +18,7 @@ The key idea: a **Starlink-side client** (mini-PC / laptop behind Starlink) gene
 
 ## 1. Architecture overview
 
-### 1.1 Network topology (Figure 1)
+### 1.1 Network topology 
 
 ![Figure 1 – Network topology](images/fig1_network_topology.png)
 
@@ -33,7 +33,7 @@ The anchor only acts as a controlled endpoint (iperf3 + HTTP server). All measur
 
 ---
 
-### 1.2 Software components & data flow (Figure 2)
+### 1.2 Software components & data flow
 
 ![Figure 2 – Software components and data flow](images/fig2_software_components.png)
 
